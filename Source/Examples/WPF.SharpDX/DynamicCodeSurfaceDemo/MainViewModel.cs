@@ -1,13 +1,11 @@
 ﻿using DemoCore;
+using HelixToolkit.Mathematics;
 using HelixToolkit.Wpf.SharpDX;
-using SharpDX;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Controls;
+using System.Numerics;
 
 namespace DynamicCodeSurfaceDemo
 {
@@ -75,7 +73,7 @@ namespace DynamicCodeSurfaceDemo
         private string sourceCode;
         public string SourceCode
         {
-            private set
+            set
             {
                 SetValue(ref sourceCode, value);
             }
@@ -115,6 +113,7 @@ namespace DynamicCodeSurfaceDemo
             materialDict.Add("Pearl", PhongMaterials.Pearl);
             materialDict.Add("PolishedBronze", PhongMaterials.PolishedBronze);
             materialDict.Add("ColorStripe", new ColorStripeMaterial() { ColorStripeX = GetGradients(Color.Red, Color.Green, Color.Blue, 48).ToArray() });
+            materialDict.Add("Diffuse", DiffuseMaterials.Orange);
             Materials = materialDict.Keys.ToArray();
             SelectedMaterial = "Normal";
         }

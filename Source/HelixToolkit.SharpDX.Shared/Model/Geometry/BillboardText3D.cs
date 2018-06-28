@@ -2,20 +2,21 @@
 The MIT License (MIT)
 Copyright (c) 2018 Helix Toolkit contributors
 */
-using System.Collections.Generic;
-using SharpDX;
-using System;
-using System.Linq;
-using System.IO;
-using System.Reflection;
 using Cyotek.Drawing.BitmapFont;
+using HelixToolkit.Mathematics;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Numerics;
+using System.Reflection;
+using Matrix = System.Numerics.Matrix4x4;
 #if CORE
 
 #else
 #if NETFX_CORE
 using Media = Windows.UI.Xaml.Media;
 #else
-using Media = System.Windows.Media;
 #endif
 #endif
 
@@ -25,7 +26,6 @@ namespace HelixToolkit.UWP
 namespace HelixToolkit.Wpf.SharpDX
 #endif
 {
-    using Core;
     using System.Collections.ObjectModel;
     using System.Diagnostics;
 
@@ -254,7 +254,8 @@ namespace HelixToolkit.Wpf.SharpDX
 
             var uv_tl = new Vector2(cu / w, cv / h);
             var uv_br = new Vector2((cu + cw) / w, (cv + ch) / h);
-
+            var off_tl = tl * info.Scale * textureScale;
+            var off_br = br * info.Scale * textureScale;
             return new BillboardVertex()
             {
                 Position = info.Origin.ToVector4(),
@@ -262,8 +263,8 @@ namespace HelixToolkit.Wpf.SharpDX
                 Background = Color.Transparent,
                 TexTL = uv_tl,
                 TexBR = uv_br,
-                OffTL = tl * info.Scale * textureScale,
-                OffBR = br * info.Scale * textureScale
+                OffTL = off_tl,
+                OffBR = off_br
             };
         }
 
@@ -278,19 +279,19 @@ namespace HelixToolkit.Wpf.SharpDX
             {
                 return false;
             }
-            var scale = modelMatrix.ScaleVector;
+            var scale = modelMatrix.ScaleVector();
             var projectionMatrix = context.ProjectionMatrix;
             var viewMatrix = context.ViewMatrix;
             var viewMatrixInv = viewMatrix.PsudoInvert();
             var visualToScreen = context.ScreenViewProjectionMatrix;
             int index = -1;
+            var rayDir = Vector3.Normalize(rayWS.Direction);
             foreach (var info in TextInfo)
             {
                 ++index;
-                var c = Vector3.TransformCoordinate(info.Origin, modelMatrix);
-                var dir = c - rayWS.Position;
-                dir.Normalize();
-                if (Vector3.Dot(dir, rayWS.Direction.Normalized()) < 0)
+                var c = Vector3Helper.TransformCoordinate(info.Origin, modelMatrix);
+                var dir = Vector3.Normalize(c - rayWS.Position);
+                if (Vector3.Dot(dir, rayDir) < 0)
                 {
                     continue;
                 }

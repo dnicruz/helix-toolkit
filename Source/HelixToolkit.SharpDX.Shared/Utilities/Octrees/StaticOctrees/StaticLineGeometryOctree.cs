@@ -3,10 +3,12 @@ The MIT License (MIT)
 Copyright (c) 2018 Helix Toolkit contributors
 */
 //#define DEBUG
-using SharpDX;
+using HelixToolkit.Mathematics;
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Runtime.CompilerServices;
+using Matrix = System.Numerics.Matrix4x4;
 
 #if NETFX_CORE
 namespace HelixToolkit.UWP.Utilities
@@ -60,15 +62,8 @@ namespace HelixToolkit.Wpf.SharpDX.Utilities
             var actual = triangleIndex * 2;
             var v1 = Positions[Indices[actual++]];
             var v2 = Positions[Indices[actual]];
-            var maxX = Math.Max(v1.X, v2.X);
-            var maxY = Math.Max(v1.Y, v2.Y);
-            var maxZ = Math.Max(v1.Z, v2.Z);
 
-            var minX = Math.Min(v1.X, v2.X);
-            var minY = Math.Min(v1.Y, v2.Y);
-            var minZ = Math.Min(v1.Z, v2.Z);
-
-            return new BoundingBox(new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ));
+            return new BoundingBox(Vector3.Min(v1, v2), Vector3.Max(v1, v2));
         }
 
         protected override BoundingBox GetMaxBound()
@@ -123,18 +118,14 @@ namespace HelixToolkit.Wpf.SharpDX.Utilities
                     var v0 = Positions[idx1];
                     var v1 = Positions[idx2];
 
-                    var t0 = Vector3.TransformCoordinate(v0, modelMatrix);
-                    var t1 = Vector3.TransformCoordinate(v1, modelMatrix);
+                    var t0 = Vector3Helper.TransformCoordinate(v0, modelMatrix);
+                    var t1 = Vector3Helper.TransformCoordinate(v1, modelMatrix);
                     Vector3 sp, tp;
                     float sc, tc;
                     var rayToLineDistance = LineBuilder.GetRayToLineDistance(rayWS, t0, t1, out sp, out tp, out sc, out tc);
                     var svpm = context.ScreenViewProjectionMatrix;
-                    Vector4 sp4;
-                    Vector4 tp4;
-                    Vector3.Transform(ref sp, ref svpm, out sp4);
-                    Vector3.Transform(ref tp, ref svpm, out tp4);
-                    var sp3 = sp4.ToVector3();
-                    var tp3 = tp4.ToVector3();
+                    Vector3 sp3 = Vector3Helper.TransformCoordinate(sp, svpm);
+                    Vector3 tp3 = Vector3Helper.TransformCoordinate(tp, svpm);
                     var tv2 = new Vector2(tp3.X - sp3.X, tp3.Y - sp3.Y);
                     var dist = tv2.Length();
                     if (dist < lastDist && dist <= hitThickness)

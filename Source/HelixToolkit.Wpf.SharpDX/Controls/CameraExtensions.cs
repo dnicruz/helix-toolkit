@@ -6,20 +6,17 @@
 //   Provides extension methods for the cameras.
 // </summary>
 // --------------------------------------------------------------------------------------------------------------------
-
+using Matrix = System.Numerics.Matrix4x4;
 namespace HelixToolkit.Wpf.SharpDX
 {
     using HelixToolkit.Wpf.SharpDX.Cameras;
     using System;
     using System.Globalization;
+    using System.Numerics;
     using System.Text;
     using System.Windows;
     using System.Windows.Media.Animation;
     using System.Windows.Media.Media3D;
-
-    using Matrix = global::SharpDX.Matrix;
-    using Matrix3x3 = global::SharpDX.Matrix3x3;
-    using Vector3 = global::SharpDX.Vector3;
 
     /// <summary>
     /// Provides extension methods for the cameras.
@@ -51,8 +48,7 @@ namespace HelixToolkit.Wpf.SharpDX
             Vector3D newUpDirection,
             double animationTime)
         {
-            var projectionCamera = camera as ProjectionCamera;
-            if (projectionCamera == null)
+            if (!(camera is ProjectionCamera projectionCamera))
             {
                 return;
             }
@@ -165,9 +161,8 @@ namespace HelixToolkit.Wpf.SharpDX
         /// </param>
         public static void CopyTo(this Camera source, Camera dest)
         {
-            var projectionSource = source as ProjectionCamera;
             var projectionDest = dest as ProjectionCamera;
-            if (projectionSource == null || projectionDest == null)
+            if (!(source is ProjectionCamera projectionSource) || projectionDest == null)
             {
                 return;
             }
@@ -178,9 +173,7 @@ namespace HelixToolkit.Wpf.SharpDX
 
             var psrc = source as PerspectiveCamera;
             var osrc = source as OrthographicCamera;
-            var pdest = dest as PerspectiveCamera;
-            var odest = dest as OrthographicCamera;
-            if (pdest != null)
+            if (dest is PerspectiveCamera pdest)
             {
                 projectionDest.NearPlaneDistance = projectionSource.NearPlaneDistance > 0 ? projectionSource.NearPlaneDistance : 1e-1;
                 projectionDest.FarPlaneDistance = projectionSource.FarPlaneDistance;
@@ -199,8 +192,7 @@ namespace HelixToolkit.Wpf.SharpDX
 
                 pdest.FieldOfView = fov;
             }
-
-            if (odest != null)
+            else if (dest is OrthographicCamera odest)
             {
                 projectionDest.NearPlaneDistance = projectionSource.NearPlaneDistance;
                 projectionDest.FarPlaneDistance = projectionSource.FarPlaneDistance;
@@ -243,22 +235,18 @@ namespace HelixToolkit.Wpf.SharpDX
         /// </returns>
         public static Vector3D FindPanVector(this Camera camera, double dx, double dy)
         {
-            var projectionCamera = camera as ProjectionCamera;
-            if (projectionCamera == null)
+            if (!(camera is ProjectionCamera projectionCamera))
             {
                 return default(Vector3D);
             }
-
-            var axis1 = Vector3D.CrossProduct(projectionCamera.LookDirection, projectionCamera.UpDirection);
-            var axis2 = Vector3D.CrossProduct(axis1, projectionCamera.LookDirection);
-            axis1.Normalize();
-            axis2.Normalize();
-            double l = projectionCamera.LookDirection.Length;
-            double f = l * 0.001;
-            var move = (-axis1 * f * dx) + (axis2 * f * dy);
-
+            var look = projectionCamera.LookDirection.ToVector3();
+            var axis1 = Vector3.Normalize(Vector3.Cross(look, projectionCamera.UpDirection.ToVector3()));
+            var axis2 = Vector3.Normalize(Vector3.Cross(axis1, look));
+            var l = look.Length();
+            var f = l * 0.001f;
+            var move = (-axis1 * f * (float)dx) + (axis2 * f * (float)dy);
             // this should be dependent on distance to target?
-            return move;
+            return move.ToVector3D();
         }
 
         /// <summary>
@@ -272,13 +260,9 @@ namespace HelixToolkit.Wpf.SharpDX
         /// </returns>
         public static string GetInfo(this Camera camera)
         {
-            var matrixCamera = camera as MatrixCamera;
-            var perspectiveCamera = camera as PerspectiveCamera;
-            var projectionCamera = camera as ProjectionCamera;
-            var orthographicCamera = camera as OrthographicCamera;
             var sb = new StringBuilder();
             sb.AppendLine(camera.GetType().Name);
-            if (projectionCamera != null)
+            if (camera is ProjectionCamera projectionCamera)
             {
                 sb.AppendLine(
                     string.Format(
@@ -314,21 +298,19 @@ namespace HelixToolkit.Wpf.SharpDX
                         CultureInfo.InvariantCulture, "NearPlaneDist:\t{0}", projectionCamera.NearPlaneDistance));
                 sb.AppendLine(
                     string.Format(CultureInfo.InvariantCulture, "FarPlaneDist:\t{0}", projectionCamera.FarPlaneDistance));
-            }
 
-            if (perspectiveCamera != null)
-            {
-                sb.AppendLine(
-                    string.Format(CultureInfo.InvariantCulture, "FieldOfView:\t{0:0.#}°", perspectiveCamera.FieldOfView));
+                if (camera is PerspectiveCamera perspectiveCamera)
+                {
+                    sb.AppendLine(
+                        string.Format(CultureInfo.InvariantCulture, "FieldOfView:\t{0:0.#}°", perspectiveCamera.FieldOfView));
+                }
+                else if (camera is OrthographicCamera orthographicCamera)
+                {
+                    sb.AppendLine(
+                        string.Format(CultureInfo.InvariantCulture, "Width:\t{0:0.###}", orthographicCamera.Width));
+                }
             }
-
-            if (orthographicCamera != null)
-            {
-                sb.AppendLine(
-                    string.Format(CultureInfo.InvariantCulture, "Width:\t{0:0.###}", orthographicCamera.Width));
-            }
-
-            if (matrixCamera != null)
+            else if (camera is MatrixCamera matrixCamera)
             {
                 sb.AppendLine("ProjectionMatrix:");
                 sb.AppendLine(matrixCamera.ProjectionMatrix.ToString(CultureInfo.InvariantCulture));
@@ -371,7 +353,7 @@ namespace HelixToolkit.Wpf.SharpDX
         public static Matrix GetInverseViewProjectionMatrix(this CameraCore camera, double aspectRatio)
         {
             var m = GetViewProjectionMatrix(camera, aspectRatio);
-            m.Invert();
+            Matrix.Invert(m, out m);
             return m;
         }
 
@@ -476,8 +458,7 @@ namespace HelixToolkit.Wpf.SharpDX
         /// </param>
         public static void LookAt(this Camera camera, Point3D target, double animationTime)
         {
-            var projectionCamera = camera as ProjectionCamera;
-            if (projectionCamera == null)
+            if (!(camera is ProjectionCamera projectionCamera))
             {
                 return;
             }
@@ -503,8 +484,7 @@ namespace HelixToolkit.Wpf.SharpDX
         public static void LookAt(
             this Camera camera, Point3D target, Vector3D newLookDirection, double animationTime)
         {
-            var projectionCamera = camera as ProjectionCamera;
-            if (projectionCamera == null)
+            if (!(camera is ProjectionCamera projectionCamera))
             {
                 return;
             }
@@ -566,8 +546,7 @@ namespace HelixToolkit.Wpf.SharpDX
         /// </param>
         public static void LookAt(this Camera camera, Point3D target, double distance, double animationTime)
         {
-            var projectionCamera = camera as ProjectionCamera;
-            if (projectionCamera == null)
+            if (!(camera is ProjectionCamera projectionCamera))
                 return;
 
             var d = projectionCamera.LookDirection;
@@ -583,14 +562,11 @@ namespace HelixToolkit.Wpf.SharpDX
         /// </param>
         public static void Reset(this Camera camera)
         {
-            var projectionCamera = camera as PerspectiveCamera;
-            if (projectionCamera != null)
+            if (camera is PerspectiveCamera projectionCamera)
             {
                 Reset(projectionCamera);
             }
-
-            var ocamera = camera as OrthographicCamera;
-            if (ocamera != null)
+            else if (camera is OrthographicCamera ocamera)
             {
                 Reset(ocamera);
             }
@@ -682,8 +658,7 @@ namespace HelixToolkit.Wpf.SharpDX
         public static void ZoomExtents(
             this Camera camera, Viewport3DX viewport, Rect3D bounds, double animationTime = 0)
         {
-            var projectionCamera = camera as ProjectionCamera;
-            if (projectionCamera == null)
+            if (!(camera is ProjectionCamera projectionCamera))
             {
                 return;
             }
@@ -715,8 +690,7 @@ namespace HelixToolkit.Wpf.SharpDX
         public static void ZoomExtents(
             this Camera camera, Viewport3DX viewport, Point3D center, double radius, double animationTime = 0)
         {
-            var projectionCamera = camera as ProjectionCamera;
-            if (projectionCamera == null)
+            if (!(camera is ProjectionCamera projectionCamera))
             {
                 return;
             }
@@ -761,8 +735,7 @@ namespace HelixToolkit.Wpf.SharpDX
         /// </param>
         public static void ZoomToRectangle(this Camera camera, Viewport3DX viewport, Rect zoomRectangle)
         {
-            var pcam = camera as ProjectionCamera;
-            if (pcam == null)
+            if (!(camera is ProjectionCamera pcam))
             {
                 return;
             }
@@ -787,8 +760,7 @@ namespace HelixToolkit.Wpf.SharpDX
             u.Normalize();
             v.Normalize();
             w.Normalize();
-            var perspectiveCamera = camera as PerspectiveCamera;
-            if (perspectiveCamera != null)
+            if (camera is PerspectiveCamera perspectiveCamera)
             {
                 var distance = pcam.LookDirection.Length;
 
@@ -806,8 +778,7 @@ namespace HelixToolkit.Wpf.SharpDX
                 // LookAt(camera, newTarget, distance * w, 0);
             }
 
-            var orthographicCamera = camera as OrthographicCamera;
-            if (orthographicCamera != null)
+            if (camera is OrthographicCamera orthographicCamera)
             {
                 orthographicCamera.Width *= zoomRectangle.Width / viewport.ActualWidth;
                 var oldTarget = pcam.Position + pcam.LookDirection;
@@ -828,8 +799,7 @@ namespace HelixToolkit.Wpf.SharpDX
         /// <param name="delta">The delta.</param>
         public static void MoveCameraPosition(this Camera camera, Vector3D delta)
         {
-            var pcam = camera as ProjectionCamera;
-            if (pcam == null)
+            if (!(camera is ProjectionCamera pcam))
             {
                 return;
             }

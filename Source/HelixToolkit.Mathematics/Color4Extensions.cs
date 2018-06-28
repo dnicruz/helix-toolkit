@@ -2,21 +2,13 @@
 The MIT License (MIT)
 Copyright (c) 2018 Helix Toolkit contributors
 */
-using SharpDX;
-using SharpDX.DirectWrite;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
-using System.IO;
 using System.Reflection;
 
-#if NETFX_CORE
-namespace HelixToolkit.UWP
-#else
-namespace HelixToolkit.Wpf.SharpDX
-#endif
+namespace HelixToolkit.Mathematics
 {
     /// <summary>
     /// Ref https://referencesource.microsoft.com/#System.Drawing/commonui/System/Drawing/ColorConverter.cs
