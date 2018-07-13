@@ -11,8 +11,8 @@
     <AssemblyName>HelixToolkit.UWP</AssemblyName>
     <DefaultLanguage>en-US</DefaultLanguage>
     <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier>
-    <TargetPlatformVersion Condition=" '$(TargetPlatformVersion)' == '' ">10.0.16299.0</TargetPlatformVersion>
-    <TargetPlatformMinVersion>10.0.10586.0</TargetPlatformMinVersion>
+    <TargetPlatformVersion Condition=" '$(TargetPlatformVersion)' == '' ">10.0.17134.0</TargetPlatformVersion>
+    <TargetPlatformMinVersion>10.0.16299.0</TargetPlatformMinVersion>
     <MinimumVisualStudioVersion>14</MinimumVisualStudioVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -156,13 +156,9 @@
     <Compile Include="Converters\BoolToVisibilityConverter.cs" />
     <Compile Include="Converters\EmptyStringToVisibilityConverter.cs" />
     <Compile Include="Converters\NotNullToVisibilityConverter.cs" />
-    <Compile Include="Model\Camera\OrthographicCamera.cs" />
     <Compile Include="Model\Element2D\Element2D.cs" />
     <Compile Include="Model\Element3D\Abstract\Element3D.cs" />
     <Compile Include="Model\Element3D\Abstract\GroupElement3D.cs" />
-    <Compile Include="Model\Camera\Camera.cs" />
-    <Compile Include="Model\Camera\PerspectiveCamera.cs" />
-    <Compile Include="Model\Camera\ProjectionCamera.cs" />
     <Compile Include="Model\Element3D\Abstract\ScreenSpaceMeshGeometry3D.cs" />
     <Compile Include="Model\Element3D\Element3DPresenter.cs" />
     <Compile Include="Model\Element3D\GroupModel3D.cs" />
@@ -447,6 +443,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Resources\psMeshColorStripe.cso">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Resources\psEffectMeshDiffuseXRayGrid.cso">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

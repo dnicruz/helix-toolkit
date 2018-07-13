@@ -40,7 +40,8 @@ namespace HelixToolkit.UWP.Utilities
         /// <param name="data"></param>
         /// <param name="count"></param>
         /// <param name="offset"></param>
-        void UploadDataToBuffer<T>(DeviceContextProxy context, IList<T> data, int count, int offset) where T : struct;
+        /// <param name="minBufferCount">Used to initialize a buffer which size is Max(count, minBufferCount). Only used in dynamic buffer.</param>
+        void UploadDataToBuffer<T>(DeviceContextProxy context, IList<T> data, int count, int offset, int minBufferCount = default(int)) where T : struct;
 
         /// <summary>
         /// <see cref="DisposeObject.DisposeAndClear"/>
@@ -83,16 +84,22 @@ namespace HelixToolkit.UWP.Utilities
         }
 
         /// <summary>
-        /// <see cref="IElementsBufferProxy.UploadDataToBuffer{T}(DeviceContextProxy, IList{T}, int, int)"/>
+        /// <see cref="IElementsBufferProxy.UploadDataToBuffer{T}(DeviceContextProxy, IList{T}, int, int, int)"/>
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="context"></param>
         /// <param name="data"></param>
         /// <param name="count"></param>
         /// <param name="offset"></param>
-        public void UploadDataToBuffer<T>(DeviceContextProxy context, IList<T> data, int count, int offset) where T : struct
+        /// <param name="minBufferCount">This is not being used in ImmutableBuffer</param>
+        public void UploadDataToBuffer<T>(DeviceContextProxy context, IList<T> data, int count, int offset, int minBufferCount = default(int)) where T : struct
         {
             RemoveAndDispose(ref buffer);
+            ElementCount = count;
+            if(count == 0)
+            {
+                return;
+            }
             var buffdesc = new BufferDescription()
             {
                 BindFlags = this.BindFlags,
@@ -103,7 +110,6 @@ namespace HelixToolkit.UWP.Utilities
                 Usage = ResourceUsage.Immutable
             };
             buffer = Collect(Buffer.Create(context, data.GetArrayByType(), buffdesc));
-            ElementCount = count;
         }
     }
 
@@ -142,17 +148,22 @@ namespace HelixToolkit.UWP.Utilities
         }
 
         /// <summary>
-        /// <see cref="IElementsBufferProxy.UploadDataToBuffer{T}(DeviceContextProxy, IList{T}, int, int)"/>
+        /// <see cref="IElementsBufferProxy.UploadDataToBuffer{T}(DeviceContextProxy, IList{T}, int, int, int)"/>
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="context"></param>
         /// <param name="data"></param>
         /// <param name="count"></param>
         /// <param name="offset"></param>
-        public void UploadDataToBuffer<T>(DeviceContextProxy context, IList<T> data, int count, int offset) where T : struct
+        /// <param name="minBufferCount">Used to create a dynamic buffer with size of Max(count, minBufferCount).</param>
+        public void UploadDataToBuffer<T>(DeviceContextProxy context, IList<T> data, int count, int offset, int minBufferCount = default(int)) where T : struct
         {
             ElementCount = count;
-            if (buffer == null || buffer.Description.SizeInBytes < StructureSize * count)
+            if (count == 0)
+            {
+                return;
+            }
+            else if (buffer == null || buffer.Description.SizeInBytes < StructureSize * count)
             {
                 RemoveAndDispose(ref buffer);
                 var buffdesc = new BufferDescription()
@@ -160,22 +171,19 @@ namespace HelixToolkit.UWP.Utilities
                     BindFlags = this.BindFlags,
                     CpuAccessFlags = CpuAccessFlags.Write,
                     OptionFlags = this.OptionFlags,
-                    SizeInBytes = StructureSize * count,
+                    SizeInBytes = StructureSize * System.Math.Max(count, minBufferCount),
                     StructureByteStride = StructureSize,
                     Usage = ResourceUsage.Dynamic
                 };
-                buffer = Collect(SDX11::Buffer.Create(context, data.GetArrayByType(), buffdesc));
+                //buffer = Collect(SDX11::Buffer.Create(context, data.GetArrayByType(), buffdesc));
+                buffer = Collect(new Buffer(context, buffdesc));
             }
-            else
+            context.MapSubresource(this.buffer, MapMode.WriteDiscard, MapFlags.None, out DataStream stream);
+            using (stream)
             {
-                DataStream stream;
-                context.MapSubresource(this.buffer, MapMode.WriteDiscard, MapFlags.None, out stream);
-                using (stream)
-                {
-                    stream.WriteRange(data.GetArrayByType(), offset, count);
-                    context.UnmapSubresource(this.buffer, 0);
-                }
+                stream.WriteRange(data.GetArrayByType(), offset, count);                    
             }
+            context.UnmapSubresource(this.buffer, 0);
         }
     }
 }

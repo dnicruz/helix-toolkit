@@ -104,7 +104,10 @@ namespace HelixToolkit.Wpf.SharpDX
             "Camera",
             typeof(Camera),
             typeof(Viewport3DX),
-            new PropertyMetadata(null, (s, e) => (s as Viewport3DX).CameraPropertyChanged(e.NewValue as Camera)));
+            new PropertyMetadata(null, (s, e) => 
+            {
+                (s as Viewport3DX).CameraPropertyChanged(e);
+            }));
 
         /// <summary>
         /// The camera rotation mode property
@@ -891,7 +894,7 @@ namespace HelixToolkit.Wpf.SharpDX
             "ManualLookAtPoint", typeof(Point3D), typeof(Viewport3DX), new FrameworkPropertyMetadata(new Point3D(), (d, e) => { },
                 (d, e) =>
                 {
-                    (d as Viewport3DX).LookAt(((Point3D)e).ToVector3());
+                    (d as Viewport3DX).LookAt((Point3D)e);
                     return e;
                 })
             { BindsTwoWayByDefault = false });

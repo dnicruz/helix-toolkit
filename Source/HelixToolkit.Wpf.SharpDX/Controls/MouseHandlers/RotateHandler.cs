@@ -10,10 +10,13 @@
 namespace HelixToolkit.Wpf.SharpDX
 {
     using System;
-    using System.Numerics;
     using System.Windows;
     using System.Windows.Input;
+    using Vector3 = System.Numerics.Vector3;
+    using Vector2 = System.Numerics.Vector2;
     using Quaternion = System.Numerics.Quaternion;
+    using Matrix = System.Numerics.Matrix4x4;
+
     /// <summary>
     /// Handles rotation.
     /// </summary>
@@ -72,7 +75,7 @@ namespace HelixToolkit.Wpf.SharpDX
                 return this.Controller.CameraRotationMode;
             }
         }
-        
+
         /// <summary>
         /// Occurs when the manipulation is completed.
         /// </summary>
@@ -82,7 +85,7 @@ namespace HelixToolkit.Wpf.SharpDX
             base.Completed(e);
             this.Viewport.HideTargetAdorner();
         }
-       
+
         /// <summary>
         /// Occurs when the position is changed during a manipulation.
         /// </summary>
@@ -130,13 +133,24 @@ namespace HelixToolkit.Wpf.SharpDX
             Rotate(p0.ToVector2(), p1.ToVector2(), rotateAround);
         }
 
-        public void Rotate(Vector2 p0, Vector2 p1, Vector3 rotateAround)
+        /// <summary>
+        /// Rotates the specified p0.
+        /// </summary>
+        /// <param name="p0">The p0.</param>
+        /// <param name="p1">The p1.</param>
+        /// <param name="rotateAround">The rotate around.</param>
+        /// <param name="stopOther">if set to <c>true</c> [stop other].</param>
+        public void Rotate(Vector2 p0, Vector2 p1, Vector3 rotateAround, bool stopOther = true)
         {
             if (!this.Controller.IsRotationEnabled)
             {
                 return;
             }
-            
+            if (stopOther)
+            {
+                Controller.StopZooming();
+                Controller.StopPanning();
+            }
             switch (this.Controller.CameraRotationMode)
             {
                 case CameraRotationMode.Trackball:
@@ -190,8 +204,8 @@ namespace HelixToolkit.Wpf.SharpDX
 
             Vector2 delta = p2 - p1;
 
-            var relativeTarget = rotateAround - this.Camera.Target.ToVector3();
-            var relativePosition = rotateAround - this.Camera.Position.ToVector3();
+            var relativeTarget = rotateAround - this.Camera.CameraInternal.Target;
+            var relativePosition = rotateAround - this.Camera.CameraInternal.Position;
 
             float d = -1;
             if (this.CameraMode != CameraMode.Inspect)
@@ -205,12 +219,12 @@ namespace HelixToolkit.Wpf.SharpDX
             var q2 = Quaternion.CreateFromAxisAngle(this.rotationAxisY, d * delta.Y / 180 * (float)Math.PI);
             Quaternion q = q1 * q2;
 
-            var m = Matrix4x4.CreateFromQuaternion(q);
-            Vector3 newLookDir = Vector3.Transform(this.Camera.LookDirection.ToVector3(), m);
-            Vector3 newUpDirection = Vector3.Transform(this.Camera.UpDirection.ToVector3(), m);
+            var m = Matrix.CreateFromQuaternion(q);
+            Vector3 newLookDir = Vector3.TransformNormal(this.Camera.CameraInternal.LookDirection, m);
+            Vector3 newUpDirection = Vector3.TransformNormal(this.Camera.CameraInternal.UpDirection, m);
 
-            Vector3 newRelativeTarget = Vector3.Transform(relativeTarget, m);
-            Vector3 newRelativePosition = Vector3.Transform(relativePosition, m);
+            Vector3 newRelativeTarget = Mathematics.Vector3Helper.TransformCoordinate(relativeTarget, m);
+            Vector3 newRelativePosition = Mathematics.Vector3Helper.TransformCoordinate(relativePosition, m);
 
             var newRightVector = Vector3.Normalize(Vector3.Cross(newLookDir, newUpDirection));
             var modUpDir = Vector3.Normalize(Vector3.Cross(newRightVector, newLookDir));
@@ -243,11 +257,11 @@ namespace HelixToolkit.Wpf.SharpDX
         /// </param>
         public void RotateTurntable(Vector2 delta, Vector3 rotateAround)
         {
-            var relativeTarget = rotateAround - this.Camera.Target.ToVector3();
+            var relativeTarget = rotateAround - this.Camera.CameraInternal.Target;
             var relativePosition = rotateAround - this.Camera.CameraInternal.Position;
             var cUp = Camera.CameraInternal.UpDirection;
             var up = this.ModelUpDirection;
-            var dir = Vector3.Normalize(Camera.LookDirection.ToVector3());
+            var dir = Vector3.Normalize(Camera.CameraInternal.LookDirection);
             var right = Vector3.Normalize(Vector3.Cross(dir, cUp));
 
             float d = -0.5f;
@@ -257,17 +271,17 @@ namespace HelixToolkit.Wpf.SharpDX
             }
 
             d *= (float)this.RotationSensitivity;
-            
+
             var q1 = Quaternion.CreateFromAxisAngle(up, d * Inv * delta.X / 180 * (float)Math.PI);
             var q2 = Quaternion.CreateFromAxisAngle(right, d * delta.Y / 180 * (float)Math.PI);
             Quaternion q = q1 * q2;
 
-            var m = Matrix4x4.CreateFromQuaternion(q);
+            var m = Matrix.CreateFromQuaternion(q);
 
-            var newUpDirection = Vector3.Transform(cUp, m);
+            var newUpDirection = Vector3.TransformNormal(cUp, m);
 
-            var newRelativeTarget = Vector3.Transform(relativeTarget, m);
-            var newRelativePosition = Vector3.Transform(relativePosition, m);
+            var newRelativeTarget = Mathematics.Vector3Helper.TransformCoordinate(relativeTarget, m);
+            var newRelativePosition = Mathematics.Vector3Helper.TransformCoordinate(relativePosition, m);
 
             var newTarget = rotateAround - newRelativeTarget;
             var newPosition = rotateAround - newRelativePosition;
@@ -288,16 +302,15 @@ namespace HelixToolkit.Wpf.SharpDX
         public override void Started(Point e)
         {
             base.Started(e);
-
             this.rotationPoint = new Point(
                 this.Viewport.ActualWidth / 2, this.Viewport.ActualHeight / 2);
-            this.rotationPoint3D = this.Camera.Target.ToVector3();
+            this.rotationPoint3D = this.Camera.CameraInternal.Target;
 
             switch (this.CameraMode)
             {
                 case CameraMode.WalkAround:
                     this.rotationPoint = this.MouseDownPoint;
-                    this.rotationPoint3D = this.Camera.Position.ToVector3();
+                    this.rotationPoint3D = this.Camera.CameraInternal.Position;
                     break;
                 default:
                     if (Controller.FixedRotationPointEnabled)
@@ -307,7 +320,7 @@ namespace HelixToolkit.Wpf.SharpDX
                     else if (this.changeLookAt && this.MouseDownNearestPoint3D != null)
                     {
                         this.LookAt(this.MouseDownNearestPoint3D.Value, 0);
-                        this.rotationPoint3D = this.Camera.Target.ToVector3();
+                        this.rotationPoint3D = this.Camera.CameraInternal.Target;
                     }
                     else if (this.Controller.RotateAroundMouseDownPoint && this.MouseDownNearestPoint3D != null)
                     {
@@ -419,8 +432,8 @@ namespace HelixToolkit.Wpf.SharpDX
             double fx = p1.X / this.Viewport.ActualWidth;
             double fy = p1.Y / this.Viewport.ActualHeight;
 
-            var up = Vector3.Normalize(Camera.UpDirection.ToVector3());
-            var dir = Vector3.Normalize(this.Camera.LookDirection.ToVector3());
+            var up = Vector3.Normalize(Camera.CameraInternal.UpDirection);
+            var dir = Vector3.Normalize(Camera.CameraInternal.LookDirection);
 
             var right = Vector3.Normalize(Vector3.Cross(dir, up));
 
@@ -462,9 +475,9 @@ namespace HelixToolkit.Wpf.SharpDX
             // http://www.codeplex.com/3DTools/Thread/View.aspx?ThreadId=22310
             var v1 = ProjectToTrackball(p1, this.Viewport.ActualWidth, this.Viewport.ActualHeight);
             var v2 = ProjectToTrackball(p2, this.Viewport.ActualWidth, this.Viewport.ActualHeight);
-            var cUP = Camera.UpDirection.ToVector3();
+            var cUP = Camera.CameraInternal.UpDirection;
             // transform the trackball coordinates to view space
-            var viewZ = Vector3.Normalize(Camera.LookDirection.ToVector3() * Inv);
+            var viewZ = Vector3.Normalize(Camera.CameraInternal.LookDirection * Inv);
             var viewX = Vector3.Normalize(Vector3.Cross(cUP, viewZ) * Inv);
             var viewY = Vector3.Normalize(Vector3.Cross(viewX, viewZ));
             var u1 = (viewZ * v1.Z) + (viewX * v1.X) + (viewY * v1.Y);
@@ -485,18 +498,18 @@ namespace HelixToolkit.Wpf.SharpDX
             }
 
             var angle = VectorExtensions.AngleBetween(u1, u2);
-            
+
             // Create the transform
-            var rotate = Matrix4x4.CreateFromAxisAngle(Vector3.Normalize(axis), -angle * (float)RotationSensitivity * 5);
+            var rotate = Matrix.CreateFromAxisAngle(Vector3.Normalize(axis), -angle * (float)RotationSensitivity * 5);
 
             // Find vectors relative to the rotate-around point
-            var relativeTarget = rotateAround - this.Camera.Target.ToVector3();
-            var relativePosition = rotateAround - this.Camera.Position.ToVector3();
+            var relativeTarget = rotateAround - this.Camera.CameraInternal.Target;
+            var relativePosition = rotateAround - this.Camera.CameraInternal.Position;
 
             // Rotate the relative vectors
-            var newRelativeTarget = Vector3.Transform(relativeTarget, rotate);
-            var newRelativePosition = Vector3.Transform(relativePosition, rotate);
-            var newUpDirection = Vector3.Transform(cUP, rotate);
+            var newRelativeTarget = Mathematics.Vector3Helper.TransformCoordinate(relativeTarget, rotate);
+            var newRelativePosition = Mathematics.Vector3Helper.TransformCoordinate(relativePosition, rotate);
+            var newUpDirection = Mathematics.Vector3Helper.TransformCoordinate(cUP, rotate);
 
             // Find new camera position
             var newTarget = rotateAround - newRelativeTarget;
