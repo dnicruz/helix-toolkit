@@ -3,11 +3,12 @@ The MIT License (MIT)
 Copyright (c) 2018 Helix Toolkit contributors
 */
 using HelixToolkit.Mathematics;
-using System;
+using SharpDX;
 using System.Collections.Generic;
-using System.Linq;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Numerics;
 
 #if !NETFX_CORE
 namespace HelixToolkit.Wpf.SharpDX.Model
@@ -15,11 +16,11 @@ namespace HelixToolkit.Wpf.SharpDX.Model
 namespace HelixToolkit.UWP.Model
 #endif
 {
+    using Core;
     using Render;
     using ShaderManager;
     using Shaders;
     using Utilities;
-    using Core;
 
     public class ColorStripeMaterialCore : MaterialCore
     {
@@ -101,22 +102,17 @@ namespace HelixToolkit.UWP.Model
             get { return colorStripeSampler; }
         }
 
-        public override IEffectMaterialVariables CreateMaterialVariables(IEffectsManager manager)
+        public override MaterialVariable CreateMaterialVariables(IEffectsManager manager, IRenderTechnique technique)
         {
-            return new ColorStripeMaterialVariables(manager, this);
+            return new ColorStripeMaterialVariables(manager, technique, this);
         }
     }
 
     /// <summary>
     /// 
     /// </summary>
-    public sealed class ColorStripeMaterialVariables : DisposeObject, IEffectMaterialVariables
+    public sealed class ColorStripeMaterialVariables : MaterialVariable
     {
-        /// <summary>
-        /// <see cref="IEffectMaterialVariables.OnInvalidateRenderer"/> 
-        /// </summary>
-        public event EventHandler<EventArgs> OnInvalidateRenderer;
-
         private readonly ITextureResourceManager textureManager;
         private readonly IStatePoolManager statePoolManager;
         private readonly ShaderResourceViewProxy[] textures = new ShaderResourceViewProxy[2];
@@ -138,109 +134,39 @@ namespace HelixToolkit.UWP.Model
         /// </summary>
         public string ShaderSamplerDiffuseTexName { set; get; } = DefaultSamplerStateNames.DiffuseMapSampler;
 
-        private bool renderDiffuseMap = true;
-        /// <summary>
-        /// 
-        /// </summary>
-        public bool RenderDiffuseMap
-        {
-            set
-            {
-                if (Set(ref renderDiffuseMap, value))
-                {
-                    needUpdate = true;
-                }
-            }
-            get
-            {
-                return renderDiffuseMap;
-            }
-        }
-
-        /// <summary>
-        ///
-        /// </summary>
-        public bool RenderDiffuseAlphaMap
-        {
-            set; get;
-        }
-
-        /// <summary>
-        ///
-        /// </summary>
-        public bool RenderNormalMap
-        {
-            set; get;
-        }
-
-        /// <summary>
-        ///
-        /// </summary>
-        public bool RenderDisplacementMap
-        {
-            set; get;
-        }
-
-        /// <summary>
-        /// 
-        /// </summary>
-        public bool RenderShadowMap
-        {
-            set; get;
-        }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether [render environment map].
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if [render environment map]; otherwise, <c>false</c>.
-        /// </value>
-        public bool RenderEnvironmentMap
-        {
-            set; get;
-        }
-
         private readonly string defaultShaderPassName = DefaultPassNames.ColorStripe1D;
-        public string DefaultShaderPassName
+        public override string DefaultShaderPassName
         {
-            set;get;
+            set; get;
         }
 
-        private bool needUpdate = true;
         private readonly ColorStripeMaterialCore material;
-        private IRenderTechnique technique;
         private readonly IDevice3DResources deviceResources;
+        private PhongMaterialStruct materialStruct = new PhongMaterialStruct() { UVTransformR1 = new Vector4(1, 0, 0, 0), UVTransformR2 = new Vector4(0, 1, 0, 0) };
         /// <summary>
         /// 
         /// </summary>
         /// <param name="manager"></param>
+        /// <param name="technique"></param>
         /// <param name="material"></param>
-        public ColorStripeMaterialVariables(IEffectsManager manager, ColorStripeMaterialCore material)
+        public ColorStripeMaterialVariables(IEffectsManager manager, IRenderTechnique technique, ColorStripeMaterialCore material)
+            : base(manager, technique, DefaultMeshConstantBufferDesc)
         {
             this.material = material;
             deviceResources = manager;
-            needUpdate = true;
             material.PropertyChanged += Material_OnMaterialPropertyChanged;
             texStripeXSlot = texStripeYSlot = -1;
             samplerDiffuseSlot = -1;
             textureManager = manager.MaterialTextureManager;
             statePoolManager = manager.StateManager;
-            CreateTextureViews();
-            CreateSamplers();
-            this.PropertyChanged += (s, e) => { OnInvalidateRenderer?.Invoke(this, EventArgs.Empty); };
-        }
-
-        public bool Attach(IRenderTechnique technique)
-        {
-            this.technique = technique;
             MaterialPass = technique[defaultShaderPassName];
             UpdateMappings(MaterialPass);
-            return !MaterialPass.IsNULL;
+            CreateTextureViews();
+            CreateSamplers();
         }
 
         private void Material_OnMaterialPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            needUpdate = true;
             if (IsDisposed)
             {
                 return;
@@ -258,8 +184,7 @@ namespace HelixToolkit.UWP.Model
                 RemoveAndDispose(ref sampler);
                 sampler = Collect(statePoolManager.Register((sender as ColorStripeMaterialCore).ColorStripeSampler));
             }
-            
-            OnInvalidateRenderer?.Invoke(this, EventArgs.Empty);
+            NotifyUpdateNeeded();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -268,7 +193,7 @@ namespace HelixToolkit.UWP.Model
             RemoveAndDispose(ref textures[which]);
             textures[which] = (colors == null || colors.Count == 0) ? null : Collect(new ShaderResourceViewProxy(deviceResources.Device));
             textures[which]?.CreateViewFromColorArray(colors.ToArray());
-            if(textures[which] != null)
+            if (textures[which] != null)
             {
                 textureIndex |= 1u << which;
             }
@@ -304,47 +229,32 @@ namespace HelixToolkit.UWP.Model
             }
         }
 
-        private void AssignVariables(ref ModelStruct modelstruct)
+        protected override void UpdateInternalVariables(DeviceContextProxy context)
         {
-            modelstruct.Diffuse = material.DiffuseColor;
-            modelstruct.HasDiffuseMap = material.ColorStripeXEnabled && (textureIndex & 1u) != 0 ? 1 : 0;
-            modelstruct.HasDiffuseAlphaMap = material.ColorStripeYEnabled && (textureIndex & 1u << 1) != 0 ? 1 : 0;
+            if (NeedUpdate)
+            {
+                materialStruct = new PhongMaterialStruct
+                {
+                    Diffuse = material.DiffuseColor,
+                    HasDiffuseMap = material.ColorStripeXEnabled && (textureIndex & 1u) != 0 ? 1 : 0,
+                    HasDiffuseAlphaMap = material.ColorStripeYEnabled && (textureIndex & 1u << 1) != 0 ? 1 : 0,
+                    UVTransformR1 = new Vector4(1, 0, 0, 0),
+                    UVTransformR2 = new Vector4(0, 1, 0, 0)
+                };
+                NeedUpdate = false;
+            }
         }
 
-        /// <summary>
-        /// Updates the material variables.
-        /// </summary>
-        /// <param name="modelstruct">The modelstruct.</param>
-        /// <returns></returns>
-        public bool UpdateMaterialVariables(ref ModelStruct modelstruct)
+        protected override void WriteMaterialDataToConstantBuffer(DataStream cbStream)
         {
-            if (material == null)
-            {
-                return false;
-            }
-            if (needUpdate)
-            {
-                AssignVariables(ref modelstruct);
-                needUpdate = false;
-            }
-            return true;
+            cbStream.Write(materialStruct);
         }
 
-        /// <summary>
-        /// <see cref="IEffectMaterialVariables.BindMaterialTextures(DeviceContextProxy, ShaderPass)"/>
-        /// </summary>
-        /// <param name="context"></param>
-        /// <param name="shaderPass"></param>
-        /// <returns></returns>
-        public bool BindMaterialTextures(DeviceContextProxy context, ShaderPass shaderPass)
+        protected override bool OnBindMaterialTextures(RenderContext context, DeviceContextProxy deviceContext, ShaderPass shaderPass)
         {
-            if (material == null)
-            {
-                return false;
-            }
             if (textureIndex != 0)
             {
-                OnBindMaterialTextures(context, shaderPass.PixelShader);
+                OnBindMaterialTextures(deviceContext, shaderPass.PixelShader);
             }
             return true;
         }
@@ -383,20 +293,18 @@ namespace HelixToolkit.UWP.Model
         {
             if (disposeManagedResources)
             {
-                technique = null;
                 material.PropertyChanged -= Material_OnMaterialPropertyChanged;
-                for(int i =0; i < textures.Length; ++i)
+                for (int i = 0; i < textures.Length; ++i)
                 {
                     textures[i] = null;
                 }
                 sampler = null;
-                OnInvalidateRenderer = null;
             }
 
             base.OnDispose(disposeManagedResources);
         }
 
-        public ShaderPass GetPass(MaterialGeometryRenderCore core, RenderContext context)
+        public override ShaderPass GetPass(RenderType renderType, RenderContext context)
         {
             return MaterialPass;
         }

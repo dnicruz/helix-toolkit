@@ -9,11 +9,26 @@ namespace HelixToolkit.UWP.Model.Scene
 namespace HelixToolkit.Wpf.SharpDX.Model.Scene
 #endif
 {
+    using Core;
     /// <summary>
     /// 
     /// </summary>
     public class NodePostEffectBorderHighlight : NodePostEffectMeshOutlineBlur
     {
+        /// <summary>
+        /// Gets or sets the draw mode.
+        /// </summary>
+        /// <value>
+        /// The draw mode.
+        /// </value>
+        public OutlineMode DrawMode
+        {
+            set
+            {
+                (RenderCore as PostEffectMeshOutlineBlurCore).DrawMode = value;
+            }
+            get { return (RenderCore as PostEffectMeshOutlineBlurCore).DrawMode; }
+        }
         /// <summary>
         /// Initializes a new instance of the <see cref="NodePostEffectBorderHighlight"/> class.
         /// </summary>

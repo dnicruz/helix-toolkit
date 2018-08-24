@@ -4,6 +4,7 @@ using System.Linq;
 using System;
 using System.Collections.ObjectModel;
 using HelixToolkit.Mathematics;
+using Matrix = System.Numerics.Matrix4x4;
 #if NETFX_CORE
 using Windows.UI.Xaml;
 namespace HelixToolkit.UWP
@@ -71,11 +72,50 @@ namespace HelixToolkit.Wpf.SharpDX
             get { return (SamplerStateDescription)this.GetValue(DiffuseMapSamplerProperty); }
             set { this.SetValue(DiffuseMapSamplerProperty, value); }
         }
+        /// <summary>
+        /// The uv transform property
+        /// </summary>
+        public static readonly DependencyProperty UVTransformProperty =
+            DependencyProperty.Register("UVTransform", typeof(Matrix), typeof(DiffuseMaterial), new PropertyMetadata(Matrix.Identity, (d, e) =>
+            {
+                ((d as Material).Core as IPhongMaterial).UVTransform = (Matrix)e.NewValue;
+            }));
+        /// <summary>
+        /// Gets or sets the texture uv transform.
+        /// </summary>
+        /// <value>
+        /// The uv transform.
+        /// </value>
+        public Matrix UVTransform
+        {
+            get { return (Matrix)GetValue(UVTransformProperty); }
+            set { SetValue(UVTransformProperty, value); }
+        }
 
         protected override MaterialCore OnCreateCore()
         {
-            return new DiffuseMaterialCore();
+            return new DiffuseMaterialCore()
+            {
+                DiffuseColor = DiffuseColor,
+                DiffuseMap = DiffuseMap,
+                UVTransform = UVTransform,
+                DiffuseMapSampler = DiffuseMapSampler
+            };
         }
+
+#if !NETFX_CORE
+        protected override Freezable CreateInstanceCore()
+        {
+            return new DiffuseMaterial()
+            {
+                DiffuseColor = DiffuseColor,
+                DiffuseMap = DiffuseMap,
+                DiffuseMapSampler = DiffuseMapSampler,
+                UVTransform = UVTransform,
+                Name = Name
+            };
+        }
+#endif
     }
 
     public class DiffuseMaterialCollection : ObservableCollection<DiffuseMaterial>

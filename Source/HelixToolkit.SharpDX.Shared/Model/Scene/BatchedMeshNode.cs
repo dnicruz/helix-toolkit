@@ -392,9 +392,6 @@ namespace HelixToolkit.Wpf.SharpDX.Model.Scene
         }
 
         private bool isTransparent = false;
-
-        private MaterialCore material;
-
         /// <summary>
         /// Specifiy if model material is transparent.
         /// During rendering, transparent objects are rendered after opaque objects. Transparent objects' order in scene graph are preserved.
@@ -414,6 +411,8 @@ namespace HelixToolkit.Wpf.SharpDX.Model.Scene
             }
         }
 
+        private MaterialVariable materialVariable;
+        private MaterialCore material;
         /// <summary>
         ///
         /// </summary>
@@ -424,7 +423,6 @@ namespace HelixToolkit.Wpf.SharpDX.Model.Scene
             {
                 if (Set(ref material, value))
                 {
-                    (RenderCore as IMaterialRenderParams).Material = material;
                     if (RenderHost != null)
                     {
                         if (IsAttached)
@@ -441,26 +439,6 @@ namespace HelixToolkit.Wpf.SharpDX.Model.Scene
                     }
                 }
             }
-        }
-
-        /// <summary>
-        /// Render environment map on this mesh if has environment map
-        /// <para>Default: false</para>
-        /// </summary>
-        public bool RenderEnvironmentMap
-        {
-            get { return (RenderCore as IMaterialRenderParams).RenderEnvironmentMap; }
-            set { (RenderCore as IMaterialRenderParams).RenderEnvironmentMap = value; }
-        }
-
-        /// <summary>
-        /// Render shadow on this mesh if has shadow map
-        /// <para>Default: false</para>
-        /// </summary>
-        public bool RenderShadowMap
-        {
-            get { return (RenderCore as IMaterialRenderParams).RenderShadowMap; }
-            set { (RenderCore as IMaterialRenderParams).RenderShadowMap = value; }
         }
 
         /// <summary>
@@ -539,8 +517,11 @@ namespace HelixToolkit.Wpf.SharpDX.Model.Scene
         /// </summary>
         protected virtual void AttachMaterial()
         {
-            var core = RenderCore as IMaterialRenderParams;
-            core.Material = this.Material;
+            RemoveAndDispose(ref materialVariable);
+            if (material != null && RenderCore is IMaterialRenderParams core)
+            {
+                core.MaterialVariables = materialVariable = Collect(EffectsManager.MaterialVariableManager.Register(material, EffectTechnique));
+            }            
             if(Materials == null && Material is PhongMaterialCore p)
             {
                 batchingBuffer.Materials = new PhongMaterialCore[] { p };
@@ -589,9 +570,17 @@ namespace HelixToolkit.Wpf.SharpDX.Model.Scene
         protected override void OnDetach()
         {
             batchingBuffer = null;
+            materialVariable = null;
+            if (RenderCore is IMaterialRenderParams core)
+            {
+                core.MaterialVariables = null;
+            }
             base.OnDetach();
         }
-
+        protected override OrderKey OnUpdateRenderOrderKey()
+        {
+            return OrderKey.Create(RenderOrder, materialVariable == null ? (ushort)0 : materialVariable.ID);
+        }
         /// <summary>
         /// <para>Determine if this can be rendered.</para>
         /// </summary>

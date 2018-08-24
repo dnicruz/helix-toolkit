@@ -6,6 +6,7 @@ using HelixToolkit.Mathematics;
 using SharpDX.Direct3D11;
 using System.IO;
 using System.Numerics;
+using Matrix = System.Numerics.Matrix4x4;
 #if !NETFX_CORE
 namespace HelixToolkit.Wpf.SharpDX.Model
 #else
@@ -174,7 +175,18 @@ namespace HelixToolkit.UWP.Model
             get { return displacementMapScaleMask; }
         }
 
-
+        private Matrix uvTransform = Matrix.Identity;
+        /// <summary>
+        /// Gets or sets the uv transform.
+        /// </summary>
+        /// <value>
+        /// The uv transform.
+        /// </value>
+        public Matrix UVTransform
+        {
+            set { Set(ref uvTransform, value); }
+            get { return uvTransform; }
+        }
 
         private SamplerStateDescription diffuseMapSampler = DefaultSamplers.LinearSamplerWrapAni4;
         /// <summary>
@@ -371,9 +383,35 @@ namespace HelixToolkit.UWP.Model
             }
         }
 
-        public override IEffectMaterialVariables CreateMaterialVariables(IEffectsManager manager)
+        private bool renderShadowMap = false;
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool RenderShadowMap
         {
-            return new TextureSharedPhongMaterialVariables(manager, this);
+            set
+            {
+                Set(ref renderShadowMap, value);
+            }
+            get { return renderShadowMap; }
+        }
+
+        private bool renderEnvironmentMap = false;
+        /// <summary>
+        /// 
+        /// </summary>
+        public bool RenderEnvironmentMap
+        {
+            set
+            {
+                Set(ref renderEnvironmentMap, value);
+            }
+            get { return renderEnvironmentMap; }
+        }
+
+        public override MaterialVariable CreateMaterialVariables(IEffectsManager manager, IRenderTechnique technique)
+        {
+            return new TextureSharedPhongMaterialVariables(manager, technique, this);
         }
     }
 }

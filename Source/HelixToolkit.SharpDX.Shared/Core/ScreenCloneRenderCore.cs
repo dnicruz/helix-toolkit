@@ -23,10 +23,11 @@ namespace HelixToolkit.Wpf.SharpDX.Core
 {
     using Render;
     using Shaders;
+    using Utilities;
     using System.Collections.Generic;
     using System.Linq;
-    using Utilities;
-
+    using System.Diagnostics;
+    using Components;
 
     /// <summary>
     /// 
@@ -156,20 +157,17 @@ namespace HelixToolkit.Wpf.SharpDX.Core
         private bool clearTarget = true;
         private bool invalidRender = true;
         private PointerInfo pointer = new PointerInfo();
+        private readonly ConstantBufferComponent modelCB;
 
         private DX11RenderHostConfiguration config = new DX11RenderHostConfiguration() { ClearEachFrame = false, RenderD2D = false, RenderLights = false, UpdatePerFrameData = false };
         /// <summary>
         /// Initializes a new instance of the <see cref="ScreenCloneRenderCore"/> class.
         /// </summary>
-        public ScreenCloneRenderCore() : base(RenderType.Opaque) { }
-        /// <summary>
-        /// Gets the model constant buffer description.
-        /// </summary>
-        /// <returns></returns>
-        protected override ConstantBufferDescription GetModelConstantBufferDescription()
-        {
-            return new ConstantBufferDescription(DefaultBufferNames.ScreenDuplicationCB, ScreenDuplicationModelStruct.SizeInBytes);
+        public ScreenCloneRenderCore() : base(RenderType.Opaque)
+        { 
+            modelCB = AddComponent(new ConstantBufferComponent(new ConstantBufferDescription(DefaultBufferNames.ScreenDuplicationCB, ScreenDuplicationModelStruct.SizeInBytes)));
         }
+
         /// <summary>
         /// Called when [attach].
         /// </summary>
@@ -177,19 +175,12 @@ namespace HelixToolkit.Wpf.SharpDX.Core
         /// <returns></returns>
         protected override bool OnAttach(IRenderTechnique technique)
         {
-            if (base.OnAttach(technique))
-            {
-                DefaultShaderPass = technique.EffectsManager[DefaultRenderTechniqueNames.ScreenDuplication][DefaultPassNames.Default];
-                CursorShaderPass = technique.EffectsManager[DefaultRenderTechniqueNames.ScreenDuplication][DefaultPassNames.ScreenQuad];
-                textureBindSlot = DefaultShaderPass.PixelShader.ShaderResourceViewMapping.TryGetBindSlot(DefaultBufferNames.DiffuseMapTB);
-                samplerBindSlot = DefaultShaderPass.PixelShader.SamplerMapping.TryGetBindSlot(DefaultSamplerStateNames.DiffuseMapSampler);
-                textureSampler = Collect(technique.EffectsManager.StateManager.Register(DefaultSamplers.ScreenDupSampler));
-                return Initialize(technique.EffectsManager);
-            }
-            else
-            {
-                return false;
-            }
+            DefaultShaderPass = technique.EffectsManager[DefaultRenderTechniqueNames.ScreenDuplication][DefaultPassNames.Default];
+            CursorShaderPass = technique.EffectsManager[DefaultRenderTechniqueNames.ScreenDuplication][DefaultPassNames.ScreenQuad];
+            textureBindSlot = DefaultShaderPass.PixelShader.ShaderResourceViewMapping.TryGetBindSlot(DefaultBufferNames.DiffuseMapTB);
+            samplerBindSlot = DefaultShaderPass.PixelShader.SamplerMapping.TryGetBindSlot(DefaultSamplerStateNames.DiffuseMapSampler);
+            textureSampler = Collect(technique.EffectsManager.StateManager.Register(DefaultSamplers.ScreenDupSampler));
+            return Initialize(technique.EffectsManager);
         }
 
         private bool Initialize(IEffectsManager manager)
@@ -253,7 +244,7 @@ namespace HelixToolkit.Wpf.SharpDX.Core
                 }
                 if (invalidRender)
                 {
-                    ModelConstBuffer.UploadDataToBuffer(deviceContext, ref modelStruct);
+                    modelCB.Upload(deviceContext, ref modelStruct);
                     DefaultShaderPass.BindShader(deviceContext);
                     DefaultShaderPass.BindStates(deviceContext,StateType.BlendState | StateType.DepthStencilState | StateType.RasterState);
                     DefaultShaderPass.PixelShader.BindSampler(deviceContext, samplerBindSlot, textureSampler);
@@ -331,9 +322,6 @@ namespace HelixToolkit.Wpf.SharpDX.Core
             model.TexBottomRight = new Vector2(texBound.Y, texBound.W);           
         }
 
-        protected override void OnUploadPerModelConstantBuffers(DeviceContextProxy context)
-        {
-        }
         /// <summary>
         /// Gets the texture bound. Ouput: x(left), y(right), z(top), w(bottom)
         /// </summary>
@@ -464,6 +452,14 @@ namespace HelixToolkit.Wpf.SharpDX.Core
             pointer = new PointerInfo();
             textureSampler = null;
             base.OnDetach();
+        }
+
+        public sealed override void RenderShadow(RenderContext context, DeviceContextProxy deviceContext)
+        {
+        }
+
+        public sealed override void RenderCustom(RenderContext context, DeviceContextProxy deviceContext)
+        {
         }
 
         private sealed class DuplicationInfo

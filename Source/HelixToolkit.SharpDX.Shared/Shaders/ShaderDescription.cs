@@ -15,7 +15,7 @@ namespace HelixToolkit.UWP.Shaders
 {
     using HelixToolkit.Logger;
     using ShaderManager;
-
+    using Helper;
     /// <summary>
     /// 
     /// </summary>
@@ -68,7 +68,7 @@ namespace HelixToolkit.UWP.Shaders
             {
                 if (byteCode == null && !string.IsNullOrEmpty(ByteCodeName))
                 {
-                    byteCode = Helper.UWPShaderBytePool.Read(ByteCodeName);
+                    byteCode = UWPShaderBytePool.Read(ByteCodeName, byteCodeReader);
                 }
                 return byteCode;
             }
@@ -122,6 +122,41 @@ namespace HelixToolkit.UWP.Shaders
         /// </value>
         public IShaderReflector ShaderReflector { set; get; }
 
+        private readonly IShaderByteCodeReader byteCodeReader;
+        #region GS Stream output Only
+        /// <summary>
+        /// Gets or sets a value indicating whether this instance is gs stream out.
+        /// </summary>
+        /// <value>
+        ///   <c>true</c> if this instance is gs stream out; otherwise, <c>false</c>.
+        /// </value>
+        [DataMember]
+        public bool IsGSStreamOut { set; get; } = false;
+        /// <summary>
+        /// Gets or sets the gs stream output element.
+        /// </summary>
+        /// <value>
+        /// The gsso element.
+        /// </value>
+        [DataMember]
+        public StreamOutputElement[] GSSOElement { set; get; } = null;
+        /// <summary>
+        /// Gets or sets the gs stream output strides.
+        /// </summary>
+        /// <value>
+        /// The gsso strides.
+        /// </value>
+        [DataMember]
+        public int[] GSSOStrides { set; get; } = null;
+        /// <summary>
+        /// Gets or sets the gs stream output rasterized stream index.
+        /// </summary>
+        /// <value>
+        /// The gsso rasterized stream index.
+        /// </value>
+        [DataMember]
+        public int GSSORasterized { set; get; } = -1;
+        #endregion
         /// <summary>
         /// Create a empty description
         /// </summary>
@@ -178,18 +213,20 @@ namespace HelixToolkit.UWP.Shaders
             ShaderReflector = reflector;
         }
         /// <summary>
-        /// Initializes a new instance of the <see cref="ShaderDescription"/> class.
+        /// Initializes a new instance of the <see cref="ShaderDescription"/> class. Pass <see cref="IShaderByteCodeReader"/> to read external custom shader bytecodes.
         /// </summary>
         /// <param name="name">The name.</param>
         /// <param name="type">The type.</param>
         /// <param name="reflector">The reflector.</param>
         /// <param name="byteCodeName">Name of the byte code.</param>
-        public ShaderDescription(string name, ShaderStage type, IShaderReflector reflector, string byteCodeName)
+        /// <param name="byteCodeReader">Used to read external custom shader byte codes</param>
+        public ShaderDescription(string name, ShaderStage type, IShaderReflector reflector, string byteCodeName, IShaderByteCodeReader byteCodeReader = null)
         {
             Name = name;
             ShaderType = type;
             ByteCodeName = byteCodeName;
             ShaderReflector = reflector;
+            this.byteCodeReader = byteCodeReader ?? UWPShaderBytePool.InternalByteCodeReader;
         }
         /// <summary>
         /// Create Shader.
@@ -239,7 +276,14 @@ namespace HelixToolkit.UWP.Shaders
                     shader = new HullShader(device, Name, ByteCode);
                     break;
                 case ShaderStage.Geometry:
-                    shader = new GeometryShader(device, Name, ByteCode);
+                    if (IsGSStreamOut)
+                    {
+                        shader = new GeometryShader(device, Name, ByteCode, GSSOElement, GSSOStrides, GSSORasterized);
+                    }
+                    else
+                    {
+                        shader = new GeometryShader(device, Name, ByteCode);
+                    }
                     break;
                 default:
                     break;
